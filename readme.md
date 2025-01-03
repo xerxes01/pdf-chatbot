@@ -2,14 +2,6 @@
 
 This system allows you to upload PDF documents and ask questions about their content. It uses OpenAI's language models for generating accurate answers based on the document context.
 
-## Features
-
-- PDF text extraction and processing
-- Semantic search using document embeddings
-- Question answering using OpenAI GPT models
-- FastAPI-based REST API
-- Production-grade code structure
-
 ## Installation
 
 1. Clone the repository
