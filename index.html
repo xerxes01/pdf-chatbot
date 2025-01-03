@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PDF Question Answering System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    h1, h2 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: #555;
+    }
+    .file-input {
+      margin-bottom: 10px;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .error {
+      color: #dc3545;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      display: none;
+    }
+    .results {
+      margin-top: 20px;
+      display: none;
+    }
+    .answer {
+      background-color: #f8f9fa;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      border-left: 4px solid #4CAF50;
+    }
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4CAF50;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PDF Question Answering System</h1>
+
+    <!-- 1) PDF Upload Form -->
+    <form id="uploadForm">
+      <h2>Step 1: Upload PDF</h2>
+      <div class="form-group">
+        <label for="pdfFile">Upload PDF Document:</label>
+        <input type="file" id="pdfFile" accept=".pdf" class="file-input" required>
+      </div>
+      <button type="submit" id="uploadBtn">Upload PDF</button>
+    </form>
+
+    <hr/>
+
+    <!-- 2) Ask Questions Form -->
+    <form id="qaForm">
+      <h2>Step 2: Ask Questions</h2>
+      <div class="form-group">
+        <label for="questions">Enter Questions (one per line):</label>
+        <textarea id="questions" placeholder="What is the company name?&#10;Who is the CEO?&#10;What is their vacation policy?" required></textarea>
+      </div>
+      <button type="submit" id="submitBtn">Submit Questions</button>
+    </form>
+
+    <div id="error" class="error"></div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>Processing your request...</p>
+    </div>
+
+    <div id="results" class="results">
+      <h2>Answers:</h2>
+      <div id="answersContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    const uploadForm = document.getElementById('uploadForm');
+    const qaForm = document.getElementById('qaForm');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const results = document.getElementById('results');
+    const answersContainer = document.getElementById('answersContainer');
+
+    // -------------------------------
+    // 1) Upload PDF Handler
+    // -------------------------------
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const pdfFile = document.getElementById('pdfFile').files[0];
+      if (!pdfFile) {
+        showError('Please select a PDF file first.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', pdfFile);
+
+      try {
+        showLoading(true);
+        const response = await fetch('http://localhost:8000/api/upload-pdf', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to upload PDF');
+        }
+
+        const data = await response.json();
+        console.log(data);
+        alert('PDF processed successfully!');  // Or show some success message
+        error.style.display = 'none';
+      } catch (err) {
+        showError(err.message || 'Error uploading PDF. Please try again.');
+      } finally {
+        showLoading(false);
+      }
+    });
+
+    // -------------------------------
+    // 2) Ask Questions Handler
+    // -------------------------------
+    qaForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const questionsText = document.getElementById('questions').value;
+      if (!questionsText.trim()) {
+        showError('Please enter at least one question');
+        return;
+      }
+
+      const questionsList = questionsText
+        .split('\n')
+        .map(q => q.trim())
+        .filter(q => q.length > 0);
+
+      const payload = {
+        questions: questionsList
+      };
+
+      try {
+        showLoading(true);
+
+        const response = await fetch('http://localhost:8000/api/ask-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to get answers');
+        }
+
+        const data = await response.json();
+        showResults(data);
+        error.style.display = 'none';
+      } catch (err) {
+        showError(err.message || 'Error processing your request. Please try again.');
+        results.style.display = 'none';
+      } finally {
+        showLoading(false);
+      }
+    });
+
+    // -------------------------------
+    // Utility Functions
+    // -------------------------------
+    function showError(message) {
+      error.textContent = message;
+      error.style.display = 'block';
+    }
+
+    function showLoading(show) {
+      loading.style.display = show ? 'block' : 'none';
+      uploadBtn.disabled = show;
+      submitBtn.disabled = show;
+
+      if (show) {
+        uploadBtn.textContent = 'Processing...';
+        submitBtn.textContent = 'Processing...';
+      } else {
+        uploadBtn.textContent = 'Upload PDF';
+        submitBtn.textContent = 'Submit Questions';
+      }
+    }
+
+    function showResults(answers) {
+      answersContainer.innerHTML = answers
+        .map(item => `
+          <div class="answer">
+            <strong>Q: ${item.question}</strong>
+            <p>A: ${item.answer}</p>
+          </div>
+        `)
+        .join('');
+      results.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
